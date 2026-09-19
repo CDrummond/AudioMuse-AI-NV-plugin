@@ -1,6 +1,6 @@
 ![GitHub license](https://img.shields.io/github/license/neptunehub/AudioMuse-AI-NV-plugin.svg)
 ![Latest Tag](https://img.shields.io/github/v/tag/neptunehub/AudioMuse-AI-NV-plugin?label=latest-tag)
-![Media Server Support: Navidrome 0.62.0](https://img.shields.io/badge/Media%20Server-Navidrome%200.62.0-blue?style=flat-square&logo=server&logoColor=white)
+![Media Server Support: Navidrome 0.64.0](https://img.shields.io/badge/Media%20Server-Navidrome%200.64.0-blue?style=flat-square&logo=server&logoColor=white)
 <a href="https://liberapay.com/NeptuneHub/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a>
 
 # AudioMuse-AI Navidrome Plugin
