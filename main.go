@@ -242,26 +242,32 @@ func initFiltering(songID string) filtering {
 // Determine if a track should be filtered out of response
 func filter(track audioMuseTrackResponse, f filtering) bool {
 	if inSet(track.Author, f.ExcludeArtists) {
+		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] Exclude Artist - %s by %s", track.Title, track.Author))
 		return true
 	}
 	if inSet(track.Album, f.ExcludeAlbums) {
+		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] Exclude Album - %s by %s", track.Title, track.Author))
 		return true
 	}
 	if inSet(fmt.Sprintf("%s//%s", track.Author, track.Album), f.ExcludeAlbums) {
+		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] Exclude Album - %s by %s", track.Title, track.Author))
 		return true
 	}
 	if f.MinDuration > 0 || f.MaxDuration > 0 || f.FilterXmas || len(f.ExcludeAlbums) > 0 || nil != f.GenresInGroups || nil != f.SeedGenres {
 		navTrack := getTrackByID(track.ItemID)
 		if navTrack != nil {
 			if (f.MinDuration > 0 && int(navTrack.Duration) < f.MinDuration) || (f.MaxDuration > 0 && int(navTrack.Duration) > f.MaxDuration) {
+				pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] Exclude Duration - %s by %s", track.Title, track.Author))
 				return true
 			}
 			if len(f.ExcludeAlbums) > 0 && inSet(fmt.Sprintf("%s//%s", navTrack.AlbumArtist, track.Album), f.ExcludeAlbums) {
+				pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] Exclude Album - %s by %s", track.Title, track.Author))
 				return true
 			}
 			if f.FilterXmas {
 				for _, genre := range navTrack.Genres {
 					if genre == christmasGenre {
+						pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] Exclude Christmas - %s by %s", track.Title, track.Author))
 						return true
 					}
 				}
@@ -274,12 +280,14 @@ func filter(track audioMuseTrackResponse, f filtering) bool {
 						return false
 					}
 				}
+				pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] Exclude Seed Genres - %s by %s", track.Title, track.Author))
 				return true
 			} else if f.GenresInGroups != nil {
 				// Seed genre not in a group, but groups defined, therefore candidate also needs to NOT be in a group
 				for _, genre := range navTrack.Genres {
 					if (*f.GenresInGroups)[genre] {
 						// Matched so filter out
+						pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] Exclude Genres - %s by %s", track.Title, track.Author))
 						return true
 					}
 				}
