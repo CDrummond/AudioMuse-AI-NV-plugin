@@ -6,11 +6,15 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
+	"strings"
+	"time"
 
 	"audiomuse-navidrome-plugin/sonicsimilarity"
+
 	"github.com/navidrome/navidrome/plugins/pdk/go/host"
 	"github.com/navidrome/navidrome/plugins/pdk/go/metadata"
 	"github.com/navidrome/navidrome/plugins/pdk/go/pdk"
+	"github.com/navidrome/navidrome/plugins/pdk/go/types"
 )
 
 // Configuration keys (must match manifest.json)
@@ -38,6 +42,8 @@ const (
 	defaultInstantMixSource    = instantMixSimilarSong
 )
 
+const christmasGenre = "Christmas"
+
 // Compile-time check that we implement necessary interfaces
 var _ metadata.SimilarSongsByArtistProvider = (*audioMusePlugin)(nil)
 var _ metadata.SimilarSongsByTrackProvider = (*audioMusePlugin)(nil)
@@ -54,6 +60,17 @@ type audioMuseTrackResponse struct {
 	Distance   float64 `json:"distance"`
 	Similarity float64 `json:"similarity"`
 	IsSeed     bool    `json:"is_seed"`
+}
+
+type filtering struct {
+	Active         bool
+	ExcludeArtists map[string]bool
+	ExcludeAlbums  map[string]bool
+	MinDuration    int
+	MaxDuration    int
+	FilterXmas     bool
+	SeedGenres     *map[string]bool
+	GenresInGroups *map[string]bool
 }
 
 func (t *audioMuseTrackResponse) UnmarshalJSON(data []byte) error {
@@ -109,6 +126,166 @@ func getConfigBool(key string, defaultValue bool) bool {
 	return defaultValue
 }
 
+// getConfigStringSlice retrieves a []string config value, returning an empty slice if unset
+func getConfigStringSlice(key string) []string {
+	raw, ok := pdk.GetConfig(key)
+	if !ok || raw == "" {
+		return []string{}
+	}
+	var result []string
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		return []string{}
+	}
+	return result
+}
+
+// Convert a list of items into a 'set'
+func listToSet(itemList []string) map[string]bool {
+	itemSet := make(map[string]bool, len(itemList))
+	for _, v := range itemList {
+		itemSet[v] = true
+	}
+	return itemSet
+}
+
+// Check if ket is in values
+func inSet(key string, values map[string]bool) bool {
+	return key != "" && values[key]
+}
+
+// Get a navaidrome track instance from its ID
+func getTrackByID(songID string) *types.Track {
+	matches, err := host.MatcherMatchSongs([]types.SongRef{
+		{ID: songID},
+	}, host.MatchOptions{})
+	if err != nil || len(matches) == 0 || matches[0] == nil {
+		return nil
+	}
+	return matches[0]
+}
+
+// Split comma separated string
+func splitString(s string) []string {
+	parts := strings.Split(s, ",")
+	for i, part := range parts {
+		parts[i] = strings.TrimSpace(part)
+	}
+	return parts
+}
+
+// Get 'set' of genres from groups where seed genre is present
+func getSeedGenres(songID string) *map[string]bool {
+	genreGroups := getConfigStringSlice("genreGroups")
+	if len(genreGroups) > 0 {
+		navTrack := getTrackByID(songID)
+		if navTrack != nil {
+			return nil
+		}
+		genres := []string{}
+
+		for _, grp := range genreGroups {
+			group := splitString(grp)
+			groupSet := listToSet(group)
+			for _, genre := range navTrack.Genres {
+				if groupSet[genre] {
+					genres = append(genres[:], group[:]...)
+					break
+				}
+			}
+		}
+		genreSet := listToSet(genres)
+		return &genreSet
+	}
+	return nil
+}
+
+// Get 'set' of all genres that user has placed into genre groups
+func getAllGenresInGroups() *map[string]bool {
+	genreGroups := getConfigStringSlice("genreGroups")
+	if len(genreGroups) > 0 {
+		genres := []string{}
+		for _, grp := range genreGroups {
+			group := splitString(grp)
+			genres = append(genres[:], group[:]...)
+		}
+		genreSet := listToSet(genres)
+		return &genreSet
+	}
+	return nil
+}
+
+// Initialise filtering rules
+func initFiltering(songID string) filtering {
+	seedGenres := getSeedGenres(songID)
+	var genresInGroups *map[string]bool = nil
+	if seedGenres == nil {
+		genresInGroups = getAllGenresInGroups()
+	}
+
+	f := filtering{
+		Active:         false,
+		ExcludeArtists: listToSet(getConfigStringSlice("excludeArtists")),
+		ExcludeAlbums:  listToSet(getConfigStringSlice("excludeAlbums")),
+		MinDuration:    getConfigInt("minDuration", 0),
+		MaxDuration:    getConfigInt("maxDuration", 0),
+		FilterXmas:     time.Now().Month() != 12 && getConfigBool("filterXmas", false),
+		SeedGenres:     seedGenres,
+		GenresInGroups: genresInGroups,
+	}
+	f.Active = len(f.ExcludeArtists) > 0 || len(f.ExcludeAlbums) > 0 || f.MinDuration > 0 || f.MaxDuration > 0 || f.FilterXmas || f.SeedGenres != nil || f.GenresInGroups != nil
+	return f
+}
+
+// Determine if a track should be filtered out of response
+func filter(track audioMuseTrackResponse, f filtering) bool {
+	if inSet(track.Author, f.ExcludeArtists) {
+		return true
+	}
+	if inSet(track.Album, f.ExcludeAlbums) {
+		return true
+	}
+	if inSet(fmt.Sprintf("%s//%s", track.Author, track.Album), f.ExcludeAlbums) {
+		return true
+	}
+	if f.MinDuration > 0 || f.MaxDuration > 0 || f.FilterXmas || len(f.ExcludeAlbums) > 0 || nil != f.GenresInGroups || nil != f.SeedGenres {
+		navTrack := getTrackByID(track.ItemID)
+		if navTrack != nil {
+			if (f.MinDuration > 0 && int(navTrack.Duration) < f.MinDuration) || (f.MaxDuration > 0 && int(navTrack.Duration) > f.MaxDuration) {
+				return true
+			}
+			if len(f.ExcludeAlbums) > 0 && inSet(fmt.Sprintf("%s//%s", navTrack.AlbumArtist, track.Album), f.ExcludeAlbums) {
+				return true
+			}
+			if f.FilterXmas {
+				for _, genre := range navTrack.Genres {
+					if genre == christmasGenre {
+						return true
+					}
+				}
+			}
+			if f.SeedGenres != nil {
+				// Seed genre is in a group, therefore candidate also needs to be in group
+				for _, genre := range navTrack.Genres {
+					if (*f.SeedGenres)[genre] {
+						// Match, so don't filter out
+						return false
+					}
+				}
+				return true
+			} else if f.GenresInGroups != nil {
+				// Seed genre not in a group, but groups defined, therefore candidate also needs to NOT be in a group
+				for _, genre := range navTrack.Genres {
+					if (*f.GenresInGroups)[genre] {
+						// Matched so filter out
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 // authHeaders returns a headers map with a Bearer token if configured, or nil otherwise.
 func authHeaders() map[string]string {
 	if token := getConfigString(configAPIToken, ""); token != "" {
@@ -131,20 +308,35 @@ func jsonHeaders() map[string]string {
 func (p *audioMusePlugin) GetSimilarSongsByTrack(input metadata.SimilarSongsByTrackRequest) (*metadata.SimilarSongsResponse, error) {
 	pdk.Log(pdk.LogInfo, fmt.Sprintf("[AudioMuse] GetSimilarSongsByTrack called for track ID: %s, Name: %s, Artist: %s", input.ID, input.Name, input.Artist))
 
-	tracks, err := p.getAudioMuseSimilarTracks(input.ID, int(input.Count))
+	filtering := initFiltering(input.ID)
+	count := int(input.Count)
+	reqCount := int(input.Count)
+	if filtering.Active {
+		reqCount *= 10
+	}
+
+	tracks, err := p.getAudioMuseSimilarTracks(input.ID, reqCount)
 	if err != nil {
 		return nil, err
 	}
 
 	// Convert to Navidrome SongRef format preserving order
 	songs := make([]metadata.SongRef, 0, len(tracks))
+	used := 0
 	for _, track := range tracks {
+		if filter(track, filtering) {
+			continue
+		}
 		songs = append(songs, metadata.SongRef{
 			ID:     track.ItemID,
 			Name:   track.Title,
 			Artist: track.Author,
 			Album:  track.Album,
 		})
+		used++
+		if used >= count {
+			break
+		}
 	}
 
 	pdk.Log(pdk.LogInfo, fmt.Sprintf("[AudioMuse] Returning %d songs to Navidrome", len(songs)))
@@ -334,13 +526,23 @@ func (p *audioMusePlugin) GetSonicSimilarTracks(input sonicsimilarity.GetSonicSi
 		count = 10
 	}
 
-	tracks, err := p.getAudioMuseSimilarTracks(input.Song.ID, count)
+	filtering := initFiltering(input.Song.ID)
+	reqCount := count
+	if filtering.Active {
+		reqCount *= 10
+	}
+
+	tracks, err := p.getAudioMuseSimilarTracks(input.Song.ID, reqCount)
 	if err != nil {
 		return sonicsimilarity.SonicSimilarityResponse{}, err
 	}
 
 	matches := make([]sonicsimilarity.SonicMatch, 0, len(tracks))
+	used := 0
 	for _, track := range tracks {
+		if filter(track, filtering) {
+			continue
+		}
 		matches = append(matches, sonicsimilarity.SonicMatch{
 			Song: metadata.SongRef{
 				ID:     track.ItemID,
@@ -350,6 +552,10 @@ func (p *audioMusePlugin) GetSonicSimilarTracks(input sonicsimilarity.GetSonicSi
 			},
 			Similarity: normalizeSimilarity(track.Distance),
 		})
+		used++
+		if used >= count {
+			break
+		}
 	}
 
 	return sonicsimilarity.SonicSimilarityResponse{Matches: matches}, nil
