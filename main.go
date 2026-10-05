@@ -43,8 +43,9 @@ const (
 )
 
 const (
-	christmasGenre    = "Christmas"
-	filterCountFactor = 5
+	christmasGenre            = "Christmas"
+	filterCountFactor         = 5
+	countToUseWhenAllFiltered = 2
 )
 
 // Compile-time check that we implement necessary interfaces
@@ -350,6 +351,22 @@ func (p *audioMusePlugin) GetSimilarSongsByTrack(input metadata.SimilarSongsByTr
 		}
 	}
 
+	// All filtered out??? Return first few - better than nothing?
+	if used < 1 {
+		for _, track := range tracks {
+			songs = append(songs, metadata.SongRef{
+				ID:     track.ItemID,
+				Name:   track.Title,
+				Artist: track.Author,
+				Album:  track.Album,
+			})
+			used++
+			if used >= countToUseWhenAllFiltered {
+				break
+			}
+		}
+	}
+
 	pdk.Log(pdk.LogInfo, fmt.Sprintf("[AudioMuse] Returning %d songs to Navidrome", len(songs)))
 
 	return &metadata.SimilarSongsResponse{Songs: songs}, nil
@@ -566,6 +583,25 @@ func (p *audioMusePlugin) GetSonicSimilarTracks(input sonicsimilarity.GetSonicSi
 		used++
 		if used >= count {
 			break
+		}
+	}
+
+	// All filtered out??? Return first 2 - better than nothing?
+	if used < 1 {
+		for _, track := range tracks {
+			matches = append(matches, sonicsimilarity.SonicMatch{
+				Song: metadata.SongRef{
+					ID:     track.ItemID,
+					Name:   track.Title,
+					Artist: track.Author,
+					Album:  track.Album,
+				},
+				Similarity: normalizeSimilarity(track.Distance),
+			})
+			used++
+			if used >= countToUseWhenAllFiltered {
+				break
+			}
 		}
 	}
 
