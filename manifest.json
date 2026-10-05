@@ -224,6 +224,12 @@
       "requiredHosts": [
         "*"
       ]
+    },
+    "matcher": {
+      "reason": "Resolve external recommendations to library tracks"
+    },
+    "library": {
+      "reason": "Required by the matcher permission"
     }
   }
 }

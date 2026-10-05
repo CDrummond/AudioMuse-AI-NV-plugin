@@ -157,7 +157,7 @@ func inSet(key string, values map[string]bool) bool {
 	return key != "" && values[key]
 }
 
-// Get a navaidrome track instance from its ID
+// Get a navidrome track instance from its ID
 func getTrackByID(songID string) *types.Track {
 	matches, err := host.MatcherMatchSongs([]types.SongRef{
 		{ID: songID},
