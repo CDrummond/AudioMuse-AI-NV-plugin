@@ -42,7 +42,10 @@ const (
 	defaultInstantMixSource    = instantMixSimilarSong
 )
 
-const christmasGenre = "Christmas"
+const (
+	christmasGenre    = "Christmas"
+	filterCountFactor = 5
+)
 
 // Compile-time check that we implement necessary interfaces
 var _ metadata.SimilarSongsByArtistProvider = (*audioMusePlugin)(nil)
@@ -312,7 +315,7 @@ func (p *audioMusePlugin) GetSimilarSongsByTrack(input metadata.SimilarSongsByTr
 	count := int(input.Count)
 	reqCount := int(input.Count)
 	if filtering.Active {
-		reqCount *= 10
+		reqCount *= filterCountFactor
 	}
 
 	tracks, err := p.getAudioMuseSimilarTracks(input.ID, reqCount)
@@ -529,7 +532,7 @@ func (p *audioMusePlugin) GetSonicSimilarTracks(input sonicsimilarity.GetSonicSi
 	filtering := initFiltering(input.Song.ID)
 	reqCount := count
 	if filtering.Active {
-		reqCount *= 10
+		reqCount *= filterCountFactor
 	}
 
 	tracks, err := p.getAudioMuseSimilarTracks(input.Song.ID, reqCount)
