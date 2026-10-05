@@ -184,22 +184,21 @@ func getSeedGenres(songID string) *map[string]bool {
 	if len(genreGroups) > 0 {
 		navTrack := getTrackByID(songID)
 		if navTrack != nil {
-			return nil
-		}
-		genres := []string{}
+			genres := []string{}
 
-		for _, grp := range genreGroups {
-			group := splitString(grp)
-			groupSet := listToSet(group)
-			for _, genre := range navTrack.Genres {
-				if groupSet[genre] {
-					genres = append(genres[:], group[:]...)
-					break
+			for _, grp := range genreGroups {
+				group := splitString(grp)
+				groupSet := listToSet(group)
+				for _, genre := range navTrack.Genres {
+					if groupSet[genre] {
+						genres = append(genres[:], group[:]...)
+						break
+					}
 				}
 			}
+			genreSet := listToSet(genres)
+			return &genreSet
 		}
-		genreSet := listToSet(genres)
-		return &genreSet
 	}
 	return nil
 }
