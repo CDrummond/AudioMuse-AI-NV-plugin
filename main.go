@@ -248,35 +248,39 @@ func initReqCount(processOpts processOptions, count int) int {
 	return count
 }
 
+func logExclude(why string, track audioMuseTrackResponse) {
+	pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE %s) %s by %s from %s", why, track.Title, track.Author, track.Album))
+}
+
 // Determine if a track should be filtered out of response
 func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 	if inSet(track.Author, processOpts.ExcludeArtists) {
-		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE Artist) %s by %s from %s", track.Title, track.Author, track.Album))
+		logExclude("Artist", track)
 		return true
 	}
 	if inSet(track.Album, processOpts.ExcludeAlbums) {
-		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE Album) %s by %s from %s", track.Title, track.Author, track.Album))
+		logExclude("Album", track)
 		return true
 	}
 	if inSet(fmt.Sprintf("%s//%s", track.Author, track.Album), processOpts.ExcludeAlbums) {
-		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE Artist+Album) %s by %s from %s", track.Title, track.Author, track.Album))
+		logExclude("Artist+Album", track)
 		return true
 	}
 	if processOpts.MinDuration > 0 || processOpts.MaxDuration > 0 || processOpts.FilterXmas || len(processOpts.ExcludeAlbums) > 0 || nil != processOpts.GenresInGroups || nil != processOpts.SeedGenres {
 		navTrack := getTrackByID(track.ItemID)
 		if navTrack != nil {
 			if (processOpts.MinDuration > 0 && int(navTrack.Duration) < processOpts.MinDuration) || (processOpts.MaxDuration > 0 && int(navTrack.Duration) > processOpts.MaxDuration) {
-				pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE Duration) %s by %s from %s", track.Title, track.Author, track.Album))
+				logExclude("Duration", track)
 				return true
 			}
 			if len(processOpts.ExcludeAlbums) > 0 && inSet(fmt.Sprintf("%s//%s", navTrack.AlbumArtist, track.Album), processOpts.ExcludeAlbums) {
-				pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE AlbumArtist+Album) %s by %s from %s", track.Title, track.Author, track.Album))
+				logExclude("AlbumArtist+Album", track)
 				return true
 			}
 			if processOpts.FilterXmas {
 				for _, genre := range navTrack.Genres {
 					if genre == christmasGenre {
-						pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE Christmas) %s by %s from %s", track.Title, track.Author, track.Album))
+						logExclude("Christmas", track)
 						return true
 					}
 				}
@@ -289,14 +293,14 @@ func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 						return false
 					}
 				}
-				pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE Seed Genres) %s by %s from %s", track.Title, track.Author, track.Album))
+				logExclude("Seed Genres", track)
 				return true
 			} else if processOpts.GenresInGroups != nil {
 				// Seed genre not in a group, but groups defined, therefore candidate also needs to NOT be in a group
 				for _, genre := range navTrack.Genres {
 					if (*processOpts.GenresInGroups)[genre] {
 						// Matched so filter out
-						pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE Genres) %s by %s from %s", track.Title, track.Author, track.Album))
+						logExclude("Genres", track)
 						return true
 					}
 				}
