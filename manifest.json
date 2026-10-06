@@ -175,7 +175,7 @@
         },
         {
           "type": "Group",
-          "label": "Filtering",
+          "label": "Processing",
           "elements": [
             {
               "type": "Control",
