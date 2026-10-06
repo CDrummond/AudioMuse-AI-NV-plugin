@@ -237,6 +237,17 @@ func initFiltering(songID string) filtering {
 	return f
 }
 
+// Adjsut count to take into account possibility of filtering
+func initReqCount(f filtering, count int) int {
+	if f.Active {
+		count *= filterCountFactor
+		if count > maxFilterTracks {
+			count = maxFilterTracks
+		}
+	}
+	return count
+}
+
 // Determine if a track should be filtered out of response
 func filter(track audioMuseTrackResponse, f filtering) bool {
 	if inSet(track.Author, f.ExcludeArtists) {
@@ -295,6 +306,38 @@ func filter(track audioMuseTrackResponse, f filtering) bool {
 	return false
 }
 
+// process AudioMuse list via filtering, etc.
+func process(tracks []audioMuseTrackResponse, f filtering, count int) []audioMuseTrackResponse {
+	if !f.Active {
+		return tracks
+	}
+	accepted := make([]audioMuseTrackResponse, 0, len(tracks))
+
+	used := 0
+	for _, track := range tracks {
+		if filter(track, f) {
+			continue
+		}
+		accepted = append(accepted, track)
+		used++
+		if used >= count {
+			break
+		}
+	}
+
+	// All filtered out??? Return first 2 - better than nothing?
+	if used < 1 {
+		for _, track := range tracks {
+			accepted = append(accepted, track)
+			used++
+			if used >= countToUseWhenAllFiltered {
+				break
+			}
+		}
+	}
+	return accepted
+}
+
 // authHeaders returns a headers map with a Bearer token if configured, or nil otherwise.
 func authHeaders() map[string]string {
 	if token := getConfigString(configAPIToken, ""); token != "" {
@@ -317,28 +360,20 @@ func jsonHeaders() map[string]string {
 func (p *audioMusePlugin) GetSimilarSongsByTrack(input metadata.SimilarSongsByTrackRequest) (*metadata.SimilarSongsResponse, error) {
 	pdk.Log(pdk.LogInfo, fmt.Sprintf("[AudioMuse] GetSimilarSongsByTrack called for track ID: %s, Name: %s, Artist: %s", input.ID, input.Name, input.Artist))
 
-	filtering := initFiltering(input.ID)
 	count := int(input.Count)
-	reqCount := int(input.Count)
-	if filtering.Active {
-		reqCount *= filterCountFactor
-		if reqCount > maxFilterTracks {
-			reqCount = maxFilterTracks
-		}
-	}
+	filtering := initFiltering(input.ID)
+	reqCount := initReqCount(filtering, count)
 
 	tracks, err := p.getAudioMuseSimilarTracks(input.ID, reqCount)
 	if err != nil {
 		return nil, err
 	}
 
+	processed := process(tracks, filtering, count)
+
 	// Convert to Navidrome SongRef format preserving order
-	songs := make([]metadata.SongRef, 0, len(tracks))
-	used := 0
-	for _, track := range tracks {
-		if filter(track, filtering) {
-			continue
-		}
+	songs := make([]metadata.SongRef, 0, len(processed))
+	for _, track := range processed {
 		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (INCLUDE) %s by %s from %s", track.Title, track.Author, track.Album))
 		songs = append(songs, metadata.SongRef{
 			ID:     track.ItemID,
@@ -346,26 +381,6 @@ func (p *audioMusePlugin) GetSimilarSongsByTrack(input metadata.SimilarSongsByTr
 			Artist: track.Author,
 			Album:  track.Album,
 		})
-		used++
-		if used >= count {
-			break
-		}
-	}
-
-	// All filtered out??? Return first few - better than nothing?
-	if used < 1 {
-		for _, track := range tracks {
-			songs = append(songs, metadata.SongRef{
-				ID:     track.ItemID,
-				Name:   track.Title,
-				Artist: track.Author,
-				Album:  track.Album,
-			})
-			used++
-			if used >= countToUseWhenAllFiltered {
-				break
-			}
-		}
 	}
 
 	pdk.Log(pdk.LogInfo, fmt.Sprintf("[AudioMuse] Returning %d songs to Navidrome", len(songs)))
@@ -556,25 +571,15 @@ func (p *audioMusePlugin) GetSonicSimilarTracks(input sonicsimilarity.GetSonicSi
 	}
 
 	filtering := initFiltering(input.Song.ID)
-	reqCount := count
-	if filtering.Active {
-		reqCount *= filterCountFactor
-		if reqCount > maxFilterTracks {
-			reqCount = maxFilterTracks
-		}
-	}
-
+	reqCount := initReqCount(filtering, count)
 	tracks, err := p.getAudioMuseSimilarTracks(input.Song.ID, reqCount)
 	if err != nil {
 		return sonicsimilarity.SonicSimilarityResponse{}, err
 	}
 
-	matches := make([]sonicsimilarity.SonicMatch, 0, len(tracks))
-	used := 0
-	for _, track := range tracks {
-		if filter(track, filtering) {
-			continue
-		}
+	processed := process(tracks, filtering, count)
+	matches := make([]sonicsimilarity.SonicMatch, 0, len(processed))
+	for _, track := range processed {
 		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (INCLUDE) %s by %s from %s", track.Title, track.Author, track.Album))
 		matches = append(matches, sonicsimilarity.SonicMatch{
 			Song: metadata.SongRef{
@@ -585,29 +590,6 @@ func (p *audioMusePlugin) GetSonicSimilarTracks(input sonicsimilarity.GetSonicSi
 			},
 			Similarity: normalizeSimilarity(track.Distance),
 		})
-		used++
-		if used >= count {
-			break
-		}
-	}
-
-	// All filtered out??? Return first 2 - better than nothing?
-	if used < 1 {
-		for _, track := range tracks {
-			matches = append(matches, sonicsimilarity.SonicMatch{
-				Song: metadata.SongRef{
-					ID:     track.ItemID,
-					Name:   track.Title,
-					Artist: track.Author,
-					Album:  track.Album,
-				},
-				Similarity: normalizeSimilarity(track.Distance),
-			})
-			used++
-			if used >= countToUseWhenAllFiltered {
-				break
-			}
-		}
 	}
 
 	return sonicsimilarity.SonicSimilarityResponse{Matches: matches}, nil
