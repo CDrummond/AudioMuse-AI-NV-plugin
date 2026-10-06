@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"slices"
 	"strconv"
@@ -50,6 +51,7 @@ const (
 	filterCountFactor         = 5
 	maxFilterTracks           = 250
 	countToUseWhenAllFiltered = 2
+	shuffleBlockSize          = 5
 )
 
 // Compile-time check that we implement necessary interfaces
@@ -71,15 +73,16 @@ type audioMuseTrackResponse struct {
 }
 
 type processOptions struct {
-	Active         bool
-	ExcludeArtists map[string]bool
-	ExcludeAlbums  map[string]bool
-	ExcludeSeed    string
-	MinDuration    int
-	MaxDuration    int
-	FilterXmas     bool
-	SeedGenres     *map[string]bool
-	GenresInGroups *map[string]bool
+	FilteringActive bool
+	ExcludeArtists  map[string]bool
+	ExcludeAlbums   map[string]bool
+	ExcludeSeed     string
+	MinDuration     int
+	MaxDuration     int
+	FilterXmas      bool
+	Shuffle         bool
+	SeedGenres      *map[string]bool
+	GenresInGroups  *map[string]bool
 }
 
 func (t *audioMuseTrackResponse) UnmarshalJSON(data []byte) error {
@@ -227,17 +230,18 @@ func initProcessOptions(track *types.Track) processOptions {
 	}
 
 	opts := processOptions{
-		Active:         false,
-		ExcludeArtists: listToSet(getConfigStringAsList("excludeArtists")),
-		ExcludeAlbums:  listToSet(getConfigStringAsList("excludeAlbums")),
-		ExcludeSeed:    getConfigString("excludeSeedArtist", excludeSeedNever),
-		MinDuration:    getConfigInt("minDuration", 0),
-		MaxDuration:    getConfigInt("maxDuration", 0),
-		FilterXmas:     time.Now().Month() != 12 && getConfigBool("filterXmas", false),
-		SeedGenres:     seedGenres,
-		GenresInGroups: genresInGroups,
+		FilteringActive: false,
+		ExcludeArtists:  listToSet(getConfigStringAsList("excludeArtists")),
+		ExcludeAlbums:   listToSet(getConfigStringAsList("excludeAlbums")),
+		ExcludeSeed:     getConfigString("excludeSeedArtist", excludeSeedNever),
+		MinDuration:     getConfigInt("minDuration", 0),
+		MaxDuration:     getConfigInt("maxDuration", 0),
+		FilterXmas:      time.Now().Month() != 12 && getConfigBool("filterXmas", true),
+		Shuffle:         getConfigBool("shuffle", true),
+		SeedGenres:      seedGenres,
+		GenresInGroups:  genresInGroups,
 	}
-	opts.Active = len(opts.ExcludeArtists) > 0 || len(opts.ExcludeAlbums) > 0 ||
+	opts.FilteringActive = len(opts.ExcludeArtists) > 0 || len(opts.ExcludeAlbums) > 0 ||
 		opts.MinDuration > 0 || opts.MaxDuration > 0 ||
 		opts.FilterXmas || opts.SeedGenres != nil || opts.GenresInGroups != nil || opts.ExcludeSeed != excludeSeedNever
 	return opts
@@ -245,7 +249,7 @@ func initProcessOptions(track *types.Track) processOptions {
 
 // Adjust count to take into account possibility of process options
 func initReqCount(processOpts processOptions, count int) int {
-	if processOpts.Active {
+	if processOpts.FilteringActive {
 		count *= filterCountFactor
 		if count > maxFilterTracks {
 			count = maxFilterTracks
@@ -316,9 +320,24 @@ func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 	return false
 }
 
+func shuffleRange(slice []audioMuseTrackResponse, start, end int) {
+	// Ensure valid range
+	if start < 0 || end > len(slice) || start >= end {
+		return
+	}
+
+	// Calculate the number of elements to shuffle
+	n := end - start
+
+	// Shuffle the range [start, end)
+	rand.Shuffle(n, func(i, j int) {
+		slice[start+i], slice[start+j] = slice[start+j], slice[start+i]
+	})
+}
+
 // process AudioMuse list via filtering, etc.
 func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpts processOptions, count int) []audioMuseTrackResponse {
-	if !processOpts.Active {
+	if !processOpts.FilteringActive && !processOpts.Shuffle {
 		return tracks
 	}
 	accepted := make([]audioMuseTrackResponse, 0, len(tracks))
@@ -348,6 +367,20 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 			used++
 			if used >= countToUseWhenAllFiltered {
 				break
+			}
+		}
+	} else if processOpts.Shuffle && used > 1 {
+		if used <= shuffleBlockSize {
+			rand.Shuffle(used, func(i, j int) {
+				accepted[i], accepted[j] = accepted[j], accepted[i]
+			})
+		} else {
+			// Shuffle blocks of tracks
+			for i := 0; i < used; i += shuffleBlockSize {
+				shuffleRange(accepted, i, i+shuffleBlockSize)
+			}
+			if used%shuffleBlockSize > 0 {
+				shuffleRange(accepted, used-(shuffleBlockSize-2), used)
 			}
 		}
 	}

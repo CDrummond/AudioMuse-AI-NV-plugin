@@ -121,6 +121,12 @@
           "title": "Only allow 'Christmas' genre in December",
           "description": "Don't use tracks with 'Christmas' genre unless its December. Default: true",
           "default": true
+        },
+        "shuffle": {
+          "type": "boolean",
+          "title": "Shuffle response",
+          "description": "Shuffle list before returning. Default: true",
+          "default": true
         }
       }
     },
@@ -239,6 +245,10 @@
             {
               "type": "Control",
               "scope": "#/properties/filterXmas"
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/shuffle"
             }
           ]
         }
