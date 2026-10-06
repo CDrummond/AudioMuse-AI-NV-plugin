@@ -131,17 +131,14 @@ func getConfigBool(key string, defaultValue bool) bool {
 	return defaultValue
 }
 
-// getConfigStringSlice retrieves a []string config value, returning an empty slice if unset
-func getConfigStringSlice(key string) []string {
-	raw, ok := pdk.GetConfig(key)
-	if !ok || raw == "" {
+// getConfigStringAsList retrieves a []string config value, returning an empty slice if unset
+func getConfigStringAsList(key string) []string {
+	str := getConfigString(key, "")
+	if len(str) < 1 {
 		return []string{}
 	}
-	var result []string
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		return []string{}
-	}
-	return result
+
+	return splitString(str, "\n")
 }
 
 // Convert a list of items into a 'set'
@@ -169,9 +166,9 @@ func getTrackByID(songID string) *types.Track {
 	return matches[0]
 }
 
-// Split comma separated string
-func splitString(s string) []string {
-	parts := strings.Split(s, ",")
+// Split sting on 'sep'
+func splitString(str, sep string) []string {
+	parts := strings.Split(str, sep)
 	for i, part := range parts {
 		parts[i] = strings.TrimSpace(part)
 	}
@@ -180,14 +177,14 @@ func splitString(s string) []string {
 
 // Get 'set' of genres from groups where seed genre is present
 func getSeedGenres(songID string) *map[string]bool {
-	genreGroups := getConfigStringSlice("genreGroups")
+	genreGroups := getConfigStringAsList("genreGroups")
 	if len(genreGroups) > 0 {
 		navTrack := getTrackByID(songID)
 		if navTrack != nil {
 			genres := []string{}
 
 			for _, grp := range genreGroups {
-				group := splitString(grp)
+				group := splitString(grp, ",")
 				groupSet := listToSet(group)
 				for _, genre := range navTrack.Genres {
 					if groupSet[genre] {
@@ -205,11 +202,11 @@ func getSeedGenres(songID string) *map[string]bool {
 
 // Get 'set' of all genres that user has placed into genre groups
 func getAllGenresInGroups() *map[string]bool {
-	genreGroups := getConfigStringSlice("genreGroups")
+	genreGroups := getConfigStringAsList("genreGroups")
 	if len(genreGroups) > 0 {
 		genres := []string{}
 		for _, grp := range genreGroups {
-			group := splitString(grp)
+			group := splitString(grp, ",")
 			genres = append(genres[:], group[:]...)
 		}
 		genreSet := listToSet(genres)
@@ -228,8 +225,8 @@ func initFiltering(songID string) filtering {
 
 	f := filtering{
 		Active:         false,
-		ExcludeArtists: listToSet(getConfigStringSlice("excludeArtists")),
-		ExcludeAlbums:  listToSet(getConfigStringSlice("excludeAlbums")),
+		ExcludeArtists: listToSet(getConfigStringAsList("excludeArtists")),
+		ExcludeAlbums:  listToSet(getConfigStringAsList("excludeAlbums")),
 		MinDuration:    getConfigInt("minDuration", 0),
 		MaxDuration:    getConfigInt("maxDuration", 0),
 		FilterXmas:     time.Now().Month() != 12 && getConfigBool("filterXmas", false),

@@ -66,34 +66,19 @@
           "default": true
         },
         "excludeArtists": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
+          "type": "string",
           "title":"Exclude artists",
-          "description": "List of artists to exclude from responses."
+          "description": "List of artists to exclude from responses. One artist per-line."
         },
         "excludeAlbums": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
+          "type": "string",
           "title":"Exclude albums",
-          "description": "List of albums to exclude from responses. Each entry should be an album name, or AlbumArtist//Album"
-        },
-        "filterXmas": {
-          "type": "boolean",
-          "title": "Filter Christmas",
-          "description": "Don't use tracks with 'Christmas' genre unless its December. Default: true",
-          "default": true
+          "description": "List of albums to exclude from responses. Each line should be an album name, or AlbumArtist//Album"
         },
         "genreGroups": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
+          "type": "string",
           "title":"Genre groups",
-          "description": "Comma separated list of genres"
+          "description": "Each line should be a comma separated list of genres defining a single group. One group per-line."
         },
         "minDuration": {
           "type": "integer",
@@ -110,6 +95,12 @@
           "default": 0,
           "minimum": 0,
           "maximum": 1800
+        },
+        "filterXmas": {
+          "type": "boolean",
+          "title": "Only allow 'Christmas' genre in December",
+          "description": "Don't use tracks with 'Christmas' genre unless its December. Default: true",
+          "default": true
         }
       }
     },
@@ -188,19 +179,30 @@
           "elements": [
             {
               "type": "Control",
-              "scope": "#/properties/excludeArtists"
+              "scope": "#/properties/excludeArtists",
+              "widget": "textarea",
+              "options": {
+                "multi": true,
+                "rows": 5
+              }
             },
             {
               "type": "Control",
-              "scope": "#/properties/excludeAlbums"
+              "scope": "#/properties/excludeAlbums",
+              "widget": "textarea",
+              "options": {
+                "multi": true,
+                "rows": 5
+              }
             },
             {
               "type": "Control",
-              "scope": "#/properties/genreGroups"
-            },
-            {
-              "type": "Control",
-              "scope": "#/properties/filterXmas"
+              "scope": "#/properties/genreGroups",
+              "widget": "textarea",
+              "options": {
+                "multi": true,
+                "rows": 5
+              }
             },
             {
               "type": "Control",
@@ -209,6 +211,10 @@
             {
               "type": "Control",
               "scope": "#/properties/maxDuration"
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/filterXmas"
             }
           ]
         }
