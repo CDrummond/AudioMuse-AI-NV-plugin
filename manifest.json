@@ -167,7 +167,7 @@
               "scope": "#/properties/instantMixSource"
             },
             {
-              "type": "HorizontalLayout",
+              "type": "VerticalLayout",
               "rule": {
                 "effect": "HIDE",
                 "condition": {
@@ -183,11 +183,17 @@
               "elements": [
                 {
                   "type": "Control",
-                  "scope": "#/properties/eliminateDuplicates"
+                  "scope": "#/properties/eliminateDuplicates",
+                  "options": {
+                    "toggle": true
+                  }
                 },
                 {
                   "type": "Control",
-                  "scope": "#/properties/radiusSimilarity"
+                  "scope": "#/properties/radiusSimilarity",
+                  "options": {
+                    "toggle": true
+                  }
                 }
               ]
             }
@@ -212,8 +218,7 @@
               "scope": "#/properties/excludeArtists",
               "widget": "textarea",
               "options": {
-                "multi": true,
-                "rows": 5
+                "multi": true
               }
             },
             {
@@ -221,8 +226,7 @@
               "scope": "#/properties/excludeAlbums",
               "widget": "textarea",
               "options": {
-                "multi": true,
-                "rows": 5
+                "multi": true
               }
             },
             {
@@ -230,8 +234,7 @@
               "scope": "#/properties/genreGroups",
               "widget": "textarea",
               "options": {
-                "multi": true,
-                "rows": 5
+                "multi": true
               }
             },
             {
@@ -248,11 +251,17 @@
             },
             {
               "type": "Control",
-              "scope": "#/properties/filterXmas"
+              "scope": "#/properties/filterXmas",
+              "options": {
+                "toggle": true
+              }
             },
             {
               "type": "Control",
-              "scope": "#/properties/shuffle"
+              "scope": "#/properties/shuffle",
+              "options": {
+                "toggle": true
+              }
             }
           ]
         }
