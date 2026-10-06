@@ -266,7 +266,7 @@
       ]
     },
     "matcher": {
-      "reason": "Resolve external recommendations to library tracks"
+      "reason": "Resolve seed track ID to library track"
     },
     "library": {
       "reason": "Required by the matcher permission"
