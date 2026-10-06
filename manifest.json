@@ -80,6 +80,26 @@
           "title":"Genre groups",
           "description": "Each line should be a comma separated list of genres defining a single group. One group per-line."
         },
+        "excludeSeedArtist": {
+          "type": "string",
+          "title": "Exclude seed artist",
+          "description": "For most mixes AudioMuse returns tracks of same artist, should these be excluded?",
+          "default": "never",
+          "oneOf": [
+            {
+              "const": "never",
+              "title": "Never exclude"
+            },
+            {
+              "const": "first",
+              "title": "Exclude only first"
+            },
+            {
+              "const": "always",
+              "title": "Exclude always"
+            }
+          ]
+        },
         "minDuration": {
           "type": "integer",
           "title": "Minimum duration",
@@ -203,6 +223,10 @@
                 "multi": true,
                 "rows": 5
               }
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/excludeSeedArtist"
             },
             {
               "type": "Control",

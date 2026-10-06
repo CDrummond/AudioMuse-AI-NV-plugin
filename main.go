@@ -43,6 +43,9 @@ const (
 )
 
 const (
+	excludeSeedNever          = "never"
+	excludeSeedFirst          = "first"
+	excludeSeedAlways         = "always"
 	christmasGenre            = "Christmas"
 	filterCountFactor         = 5
 	maxFilterTracks           = 250
@@ -71,6 +74,7 @@ type processOptions struct {
 	Active         bool
 	ExcludeArtists map[string]bool
 	ExcludeAlbums  map[string]bool
+	ExcludeSeed    string
 	MinDuration    int
 	MaxDuration    int
 	FilterXmas     bool
@@ -176,17 +180,16 @@ func splitString(str, sep string) []string {
 }
 
 // Get 'set' of genres from groups where seed genre is present
-func getSeedGenres(songID string) *map[string]bool {
-	genreGroups := getConfigStringAsList("genreGroups")
-	if len(genreGroups) > 0 {
-		navTrack := getTrackByID(songID)
-		if navTrack != nil {
+func getSeedGenres(track *types.Track) *map[string]bool {
+	if track != nil {
+		genreGroups := getConfigStringAsList("genreGroups")
+		if len(genreGroups) > 0 {
 			genres := []string{}
 
 			for _, grp := range genreGroups {
 				group := splitString(grp, ",")
 				groupSet := listToSet(group)
-				for _, genre := range navTrack.Genres {
+				for _, genre := range track.Genres {
 					if groupSet[genre] {
 						genres = append(genres[:], group[:]...)
 						break
@@ -216,8 +219,8 @@ func getAllGenresInGroups() *map[string]bool {
 }
 
 // Initialise processOptions rules
-func initProcessOptions(songID string) processOptions {
-	seedGenres := getSeedGenres(songID)
+func initProcessOptions(track *types.Track) processOptions {
+	seedGenres := getSeedGenres(track)
 	var genresInGroups *map[string]bool = nil
 	if seedGenres == nil {
 		genresInGroups = getAllGenresInGroups()
@@ -227,13 +230,16 @@ func initProcessOptions(songID string) processOptions {
 		Active:         false,
 		ExcludeArtists: listToSet(getConfigStringAsList("excludeArtists")),
 		ExcludeAlbums:  listToSet(getConfigStringAsList("excludeAlbums")),
+		ExcludeSeed:    getConfigString("excludeSeedArtist", excludeSeedNever),
 		MinDuration:    getConfigInt("minDuration", 0),
 		MaxDuration:    getConfigInt("maxDuration", 0),
 		FilterXmas:     time.Now().Month() != 12 && getConfigBool("filterXmas", false),
 		SeedGenres:     seedGenres,
 		GenresInGroups: genresInGroups,
 	}
-	opts.Active = len(opts.ExcludeArtists) > 0 || len(opts.ExcludeAlbums) > 0 || opts.MinDuration > 0 || opts.MaxDuration > 0 || opts.FilterXmas || opts.SeedGenres != nil || opts.GenresInGroups != nil
+	opts.Active = len(opts.ExcludeArtists) > 0 || len(opts.ExcludeAlbums) > 0 ||
+		opts.MinDuration > 0 || opts.MaxDuration > 0 ||
+		opts.FilterXmas || opts.SeedGenres != nil || opts.GenresInGroups != nil || opts.ExcludeSeed != excludeSeedNever
 	return opts
 }
 
@@ -311,14 +317,20 @@ func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 }
 
 // process AudioMuse list via filtering, etc.
-func process(tracks []audioMuseTrackResponse, processOpts processOptions, count int) []audioMuseTrackResponse {
+func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpts processOptions, count int) []audioMuseTrackResponse {
 	if !processOpts.Active {
 		return tracks
 	}
 	accepted := make([]audioMuseTrackResponse, 0, len(tracks))
+	exSeedFirst := excludeSeedFirst == processOpts.ExcludeSeed
+	exSeedAlways := excludeSeedAlways == processOpts.ExcludeSeed
 
 	used := 0
-	for _, track := range tracks {
+	for idx, track := range tracks {
+		if ((exSeedFirst && 0 == idx) || exSeedAlways) && seedTrack != nil && (track.Author == (*seedTrack).Artist || track.Author == (*seedTrack).AlbumArtist) {
+			logExclude(fmt.Sprintf("Seed Artist [%d]", idx), track)
+			continue
+		}
 		if filter(track, processOpts) {
 			continue
 		}
@@ -364,8 +376,9 @@ func jsonHeaders() map[string]string {
 func (p *audioMusePlugin) GetSimilarSongsByTrack(input metadata.SimilarSongsByTrackRequest) (*metadata.SimilarSongsResponse, error) {
 	pdk.Log(pdk.LogInfo, fmt.Sprintf("[AudioMuse] GetSimilarSongsByTrack called for track ID: %s, Name: %s, Artist: %s", input.ID, input.Name, input.Artist))
 
+	seedTrack := getTrackByID(input.ID)
 	count := int(input.Count)
-	processOpts := initProcessOptions(input.ID)
+	processOpts := initProcessOptions(seedTrack)
 	reqCount := initReqCount(processOpts, count)
 
 	tracks, err := p.getAudioMuseSimilarTracks(input.ID, reqCount)
@@ -373,7 +386,7 @@ func (p *audioMusePlugin) GetSimilarSongsByTrack(input metadata.SimilarSongsByTr
 		return nil, err
 	}
 
-	processed := process(tracks, processOpts, count)
+	processed := process(seedTrack, tracks, processOpts, count)
 
 	// Convert to Navidrome SongRef format preserving order
 	songs := make([]metadata.SongRef, 0, len(processed))
@@ -574,14 +587,15 @@ func (p *audioMusePlugin) GetSonicSimilarTracks(input sonicsimilarity.GetSonicSi
 		count = 10
 	}
 
-	processOpts := initProcessOptions(input.Song.ID)
+	seedTrack := getTrackByID(input.Song.ID)
+	processOpts := initProcessOptions(seedTrack)
 	reqCount := initReqCount(processOpts, count)
 	tracks, err := p.getAudioMuseSimilarTracks(input.Song.ID, reqCount)
 	if err != nil {
 		return sonicsimilarity.SonicSimilarityResponse{}, err
 	}
 
-	processed := process(tracks, processOpts, count)
+	processed := process(seedTrack, tracks, processOpts, count)
 	matches := make([]sonicsimilarity.SonicMatch, 0, len(processed))
 	for _, track := range processed {
 		pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (INCLUDE) %s by %s from %s", track.Title, track.Author, track.Album))
