@@ -92,11 +92,15 @@
             },
             {
               "const": "first",
-              "title": "Exclude only first"
+              "title": "Exclude first occurance"
             },
             {
-              "const": "always",
-              "title": "Exclude always"
+              "const": "few",
+              "title": "Exclude all occurances (if only a few tracks requested)"
+            },
+            {
+              "const": "all",
+              "title": "Exclude all occurances"
             }
           ]
         },

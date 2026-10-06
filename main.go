@@ -46,7 +46,8 @@ const (
 const (
 	excludeSeedNever          = "never"
 	excludeSeedFirst          = "first"
-	excludeSeedAlways         = "always"
+	excludeSeedAllIfFew       = "few"
+	excludeSeedAll            = "all"
 	christmasGenre            = "Christmas"
 	filterCountFactor         = 5
 	maxFilterTracks           = 250
@@ -342,11 +343,11 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 	}
 	accepted := make([]audioMuseTrackResponse, 0, len(tracks))
 	exSeedFirst := excludeSeedFirst == processOpts.ExcludeSeed
-	exSeedAlways := excludeSeedAlways == processOpts.ExcludeSeed
+	exSeedAll := (excludeSeedAll == processOpts.ExcludeSeed) || (excludeSeedAllIfFew == processOpts.ExcludeSeed && count <= 8)
 
 	used := 0
 	for idx, track := range tracks {
-		if ((exSeedFirst && 0 == idx) || exSeedAlways) && seedTrack != nil && (track.Author == (*seedTrack).Artist || track.Author == (*seedTrack).AlbumArtist) {
+		if ((exSeedFirst && 0 == idx) || exSeedAll) && seedTrack != nil && (track.Author == (*seedTrack).Artist || track.Author == (*seedTrack).AlbumArtist) {
 			logExclude(fmt.Sprintf("Seed Artist [%d]", idx), track)
 			continue
 		}
