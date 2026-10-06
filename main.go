@@ -346,6 +346,11 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 	exSeedAll := (excludeSeedAll == processOpts.ExcludeSeed) || (excludeSeedAllIfFew == processOpts.ExcludeSeed && count <= 8)
 
 	used := 0
+	useReq := count
+	if processOpts.Shuffle {
+		// If we are going to shuffle then we we also exclude consecutive artists - so might need more tracks to cater for this.
+		useReq = count + (count / 2)
+	}
 	for idx, track := range tracks {
 		if ((exSeedFirst && 0 == idx) || exSeedAll) && seedTrack != nil && (track.Author == (*seedTrack).Artist || track.Author == (*seedTrack).AlbumArtist) {
 			logExclude(fmt.Sprintf("Seed Artist [%d]", idx), track)
@@ -356,7 +361,7 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 		}
 		accepted = append(accepted, track)
 		used++
-		if used >= count {
+		if used >= useReq {
 			break
 		}
 	}
@@ -370,7 +375,7 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 				break
 			}
 		}
-	} else if processOpts.Shuffle && used > 1 {
+	} else if processOpts.Shuffle && used > 2 {
 		if used <= shuffleBlockSize {
 			rand.Shuffle(used, func(i, j int) {
 				accepted[i], accepted[j] = accepted[j], accepted[i]
@@ -382,6 +387,28 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 			}
 			if used%shuffleBlockSize > 0 {
 				shuffleRange(accepted, used-(shuffleBlockSize-2), used)
+			}
+		}
+
+		if used > 2 {
+			// Now ensure don't have 2 tracks in a row from same artist
+			filtered := make([]audioMuseTrackResponse, 0, len(accepted))
+			lastArtist := ""
+			filterCount := 0
+			for _, track := range accepted {
+				if track.Author == lastArtist {
+					logExclude("Same Artist as prev", track)
+					continue
+				}
+				lastArtist = track.Author
+				filtered = append(filtered, track)
+				filterCount += 1
+				if filterCount >= count {
+					break
+				}
+			}
+			if filterCount >= 3 {
+				return filtered
 			}
 		}
 	}
