@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/url"
 	"slices"
 	"strconv"
@@ -50,7 +50,7 @@ const (
 	excludeSeedAll            = "all"
 	christmasGenre            = "Christmas"
 	filterCountFactor         = 5
-	maxFilterTracks           = 250
+	maxFilterTracks           = 300
 	countToUseWhenAllFiltered = 2
 	shuffleBlockSize          = 5
 )
@@ -82,6 +82,7 @@ type processOptions struct {
 	MaxDuration     int
 	FilterXmas      bool
 	Shuffle         bool
+	Remove          bool
 	SeedGenres      *map[string]bool
 	GenresInGroups  *map[string]bool
 }
@@ -239,6 +240,7 @@ func initProcessOptions(track *types.Track) processOptions {
 		MaxDuration:     getConfigInt("maxDuration", 0),
 		FilterXmas:      time.Now().Month() != 12 && getConfigBool("filterXmas", true),
 		Shuffle:         getConfigBool("shuffle", true),
+		Remove:          getConfigBool("remove", true),
 		SeedGenres:      seedGenres,
 		GenresInGroups:  genresInGroups,
 	}
@@ -255,6 +257,8 @@ func initReqCount(processOpts processOptions, count int) int {
 		if count > maxFilterTracks {
 			count = maxFilterTracks
 		}
+	} else if processOpts.Remove || processOpts.Shuffle {
+		count *= 2
 	}
 	return count
 }
@@ -338,7 +342,7 @@ func shuffleRange(slice []audioMuseTrackResponse, start, end int) {
 
 // process AudioMuse list via filtering, etc.
 func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpts processOptions, count int) []audioMuseTrackResponse {
-	if !processOpts.FilteringActive && !processOpts.Shuffle {
+	if !processOpts.FilteringActive && !processOpts.Shuffle && !processOpts.Remove {
 		return tracks
 	}
 	accepted := make([]audioMuseTrackResponse, 0, len(tracks))
@@ -350,6 +354,9 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 	if processOpts.Shuffle {
 		// If we are going to shuffle then we we also exclude consecutive artists - so might need more tracks to cater for this.
 		useReq = count + (count / 2)
+	}
+	if processOpts.Remove && useReq < count*2 {
+		useReq = count * 2
 	}
 	for idx, track := range tracks {
 		if ((exSeedFirst && 0 == idx) || exSeedAll) && seedTrack != nil && (track.Author == (*seedTrack).Artist || track.Author == (*seedTrack).AlbumArtist) {
@@ -375,18 +382,40 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 				break
 			}
 		}
-	} else if processOpts.Shuffle && used > 2 {
-		if used <= shuffleBlockSize {
-			rand.Shuffle(used, func(i, j int) {
-				accepted[i], accepted[j] = accepted[j], accepted[i]
-			})
-		} else {
-			// Shuffle blocks of tracks
-			for i := 0; i < used; i += shuffleBlockSize {
-				shuffleRange(accepted, i, i+shuffleBlockSize)
+	} else {
+		blockSize := shuffleBlockSize
+		if processOpts.Remove && processOpts.Shuffle && used >= shuffleBlockSize {
+			blockSize += shuffleBlockSize / 2
+		}
+		if processOpts.Shuffle && used > 2 {
+			if used <= blockSize {
+				rand.Shuffle(used, func(i, j int) {
+					accepted[i], accepted[j] = accepted[j], accepted[i]
+				})
+			} else {
+				// Shuffle blocks of tracks
+				for i := 0; i < used; i += blockSize {
+					shuffleRange(accepted, i, i+blockSize)
+				}
+				if used%blockSize > 0 {
+					shuffleRange(accepted, used-(blockSize-2), used)
+				}
 			}
-			if used%shuffleBlockSize > 0 {
-				shuffleRange(accepted, used-(shuffleBlockSize-2), used)
+		}
+
+		if processOpts.Remove && blockSize > 4 && used >= blockSize {
+			toRemove := shuffleBlockSize - blockSize
+			if toRemove <= 0 || toRemove >= 4 {
+				toRemove = 2
+			}
+			for i := 0; i < used-blockSize; i += blockSize {
+				for j := range toRemove {
+					index := (i * blockSize) + rand.IntN(blockSize-j)
+					if index >= 0 && index < used {
+						accepted = append(accepted[:index], accepted[index+1:]...)
+						used = len(accepted)
+					}
+				}
 			}
 		}
 

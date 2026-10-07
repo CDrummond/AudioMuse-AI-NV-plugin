@@ -131,6 +131,12 @@
           "title": "Shuffle response",
           "description": "Shuffle list before returning. Default: true",
           "default": true
+        },
+        "remove": {
+          "type": "boolean",
+          "title": "Randomly remove tracks",
+          "description": "Randomly remove some tracks so that same tracks are not always returned. Default: true",
+          "default": true
         }
       }
     },
@@ -259,6 +265,13 @@
             {
               "type": "Control",
               "scope": "#/properties/shuffle",
+              "options": {
+                "toggle": true
+              }
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/remove",
               "options": {
                 "toggle": true
               }
