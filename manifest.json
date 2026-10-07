@@ -75,6 +75,12 @@
           "title":"Exclude albums",
           "description": "List of albums to exclude from responses. Each line should be an album name, or AlbumArtist//Album"
         },
+        "excludeExplict": {
+          "type": "boolean",
+          "title":"Exclude explicit tracks",
+          "description": "Exclude tracks with explicit lyrics. Default: true",
+          "default": true
+        },
         "genreGroups": {
           "type": "string",
           "title":"Genre groups",
@@ -254,6 +260,13 @@
             {
               "type": "Control",
               "scope": "#/properties/maxDuration"
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/excludeExplict",
+              "options": {
+                "toggle": true
+              }
             },
             {
               "type": "Control",

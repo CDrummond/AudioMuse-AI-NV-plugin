@@ -78,6 +78,7 @@ type processOptions struct {
 	ExcludeArtists  map[string]bool
 	ExcludeAlbums   map[string]bool
 	ExcludeSeed     string
+	ExcludeExplict  bool
 	MinDuration     int
 	MaxDuration     int
 	FilterXmas      bool
@@ -236,6 +237,7 @@ func initProcessOptions(track *types.Track) processOptions {
 		ExcludeArtists:  listToSet(getConfigStringAsList("excludeArtists")),
 		ExcludeAlbums:   listToSet(getConfigStringAsList("excludeAlbums")),
 		ExcludeSeed:     getConfigString("excludeSeedArtist", excludeSeedNever),
+		ExcludeExplict:  getConfigBool("excludeExplict", true),
 		MinDuration:     getConfigInt("minDuration", 0),
 		MaxDuration:     getConfigInt("maxDuration", 0),
 		FilterXmas:      time.Now().Month() != 12 && getConfigBool("filterXmas", true),
@@ -284,6 +286,10 @@ func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 	if processOpts.MinDuration > 0 || processOpts.MaxDuration > 0 || processOpts.FilterXmas || len(processOpts.ExcludeAlbums) > 0 || nil != processOpts.GenresInGroups || nil != processOpts.SeedGenres {
 		navTrack := getTrackByID(track.ItemID)
 		if navTrack != nil {
+			if processOpts.ExcludeExplict && len(navTrack.ExplicitStatus) > 0 {
+				logExclude("Explicit", track)
+				return true
+			}
 			if (processOpts.MinDuration > 0 && int(navTrack.Duration) < processOpts.MinDuration) || (processOpts.MaxDuration > 0 && int(navTrack.Duration) > processOpts.MaxDuration) {
 				logExclude("Duration", track)
 				return true
