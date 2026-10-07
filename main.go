@@ -504,7 +504,15 @@ func (p *audioMusePlugin) GetSimilarSongsByTrack(input metadata.SimilarSongsByTr
 func (p *audioMusePlugin) getAudioMuseSimilarTracks(itemID string, count int) ([]audioMuseTrackResponse, error) {
 	switch getConfigString(configInstantMixSource, defaultInstantMixSource) {
 	case instantMixLyricsBySong:
-		return getLyricsSimilarTracks(itemID, count)
+		{
+			tracks, err := getLyricsSimilarTracks(itemID, count)
+			if err != nil {
+				pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] %s failed, falling back to %s", configInstantMixSource, instantMixSimilarSong))
+				return getSimilarTracks(itemID, count)
+			} else {
+				return tracks, err
+			}
+		}
 	case instantMixHyperbolic:
 		return getHyperbolicSimilarTracks(itemID, count)
 	default:
