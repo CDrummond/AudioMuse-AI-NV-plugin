@@ -265,8 +265,12 @@ func initReqCount(processOpts processOptions, count int) int {
 	return count
 }
 
+func trackStr(track audioMuseTrackResponse) string {
+	return fmt.Sprintf("%s by %s from %s", track.Title, track.Author, track.Album)
+}
+
 func logExclude(why string, track audioMuseTrackResponse) {
-	pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE %s) %s by %s from %s", why, track.Title, track.Author, track.Album))
+	pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE %s) %s", why, trackStr(track)))
 }
 
 // Determine if a track should be filtered out of response
@@ -418,6 +422,7 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 				for j := range toRemove {
 					index := (i * blockSize) + rand.IntN(blockSize-j)
 					if index >= 0 && index < used {
+						pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (REMOVE) %s", trackStr(accepted[index])))
 						accepted = append(accepted[:index], accepted[index+1:]...)
 						used = len(accepted)
 					}
