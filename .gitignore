@@ -22,6 +22,7 @@ audiomuse-navidrome-plugin
 bin/
 dist/
 build/
+audiomuseai.wasm
 
 # Dependency directories
 vendor/
