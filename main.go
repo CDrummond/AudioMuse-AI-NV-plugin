@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -54,6 +55,8 @@ const (
 	countToUseWhenAllFiltered = 2
 	shuffleBlockSize          = 5
 )
+
+var bracketRe = regexp.MustCompile(`\([^)]*\)`)
 
 // Compile-time check that we implement necessary interfaces
 var _ metadata.SimilarSongsByArtistProvider = (*audioMusePlugin)(nil)
@@ -273,6 +276,19 @@ func logExclude(why string, track audioMuseTrackResponse) {
 	pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE %s) %s", why, trackStr(track)))
 }
 
+func removeBrackets(s string) string {
+	s = bracketRe.ReplaceAllString(s, " ")
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func sanitiseTitle(s string) string {
+	return strings.ToLower(strings.NewReplacer(".", "", "/").Replace(removeBrackets(s)))
+}
+
+func sanitiseArtist(s string) string {
+	return strings.ToLower(strings.NewReplacer(".", "", "/").Replace(s))
+}
+
 // Determine if a track should be filtered out of response
 func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 	if inSet(track.Author, processOpts.ExcludeArtists) {
@@ -356,23 +372,31 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 		return tracks
 	}
 	accepted := make([]audioMuseTrackResponse, 0, len(tracks))
-	exSeedFirst := excludeSeedFirst == processOpts.ExcludeSeed
-	exSeedAll := (excludeSeedAll == processOpts.ExcludeSeed) || (excludeSeedAllIfFew == processOpts.ExcludeSeed && count <= 8)
+	titles := make(map[string]bool, len(tracks))
+	exSeedFirst := (excludeSeedFirst == processOpts.ExcludeSeed) || (excludeSeedAllIfFew == processOpts.ExcludeSeed)
+	exSeedAll := (excludeSeedAll == processOpts.ExcludeSeed) || (excludeSeedAllIfFew == processOpts.ExcludeSeed && count <= 10)
 
 	used := 0
-	useReq := count
-	if processOpts.Shuffle {
-		// If we are going to shuffle then we we also exclude consecutive artists - so might need more tracks to cater for this.
-		useReq = count + (count / 2)
-	}
-	if processOpts.Remove && useReq < count*2 {
-		useReq = count * 2
-	}
+	useReq := count * 2
+	sanitisedTitle := sanitiseTitle((*seedTrack).Title)
+	sanitisedArtist := sanitiseArtist((*seedTrack).Artist)
+	sanitisedAlbumArtist := sanitiseArtist((*seedTrack).AlbumArtist)
+
 	for idx, track := range tracks {
-		if ((exSeedFirst && 0 == idx) || exSeedAll) && seedTrack != nil && (track.Author == (*seedTrack).Artist || track.Author == (*seedTrack).AlbumArtist) {
+		if ((exSeedFirst && 0 == idx) || exSeedAll) && seedTrack != nil && (sanitiseArtist(track.Author) == sanitisedArtist || sanitiseArtist(track.Author) == sanitisedAlbumArtist) {
 			logExclude(fmt.Sprintf("Seed Artist [%d]", idx), track)
 			continue
 		}
+		title := sanitiseTitle(track.Title)
+		if (title == sanitisedTitle) {
+			logExclude(fmt.Sprintf("Seed Title [%d]", idx), track)
+			continue
+		}
+		if (inSet(title, titles)) {
+			logExclude(fmt.Sprintf("Title [%d]", idx), track)
+			continue
+		}
+		titles[title] = true
 		if filter(track, processOpts) {
 			continue
 		}
@@ -436,11 +460,12 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 			lastArtist := ""
 			filterCount := 0
 			for _, track := range accepted {
-				if track.Author == lastArtist {
+				sanitisedArtist = sanitiseArtist(track.Author)
+				if sanitisedArtist == lastArtist {
 					logExclude("Same Artist as prev", track)
 					continue
 				}
-				lastArtist = track.Author
+				lastArtist = sanitisedArtist
 				filtered = append(filtered, track)
 				filterCount += 1
 				if filterCount >= count {
