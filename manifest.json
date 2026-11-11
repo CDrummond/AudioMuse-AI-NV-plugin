@@ -50,8 +50,24 @@
             {
               "const": "hyperbolic",
               "title": "Hyperbolic Similarity"
+            },
+            {
+              "const": "dclap",
+              "title": "DCLAP"
+            },
+            {
+              "const": "songAlchemy",
+              "title": "Song Alchemy"
             }
           ]
+        },
+        "alchemyTemperature": {
+          "type": "number",
+          "title": "Temperature",
+          "description": "Song Alchemy randomness: 0 returns the closest songs, higher values pick more varied songs. Default: 1",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 10
         },
         "eliminateDuplicates": {
           "type": "boolean",
@@ -98,15 +114,15 @@
             },
             {
               "const": "first",
-              "title": "Exclude first occurance"
+              "title": "Exclude first occurrence"
             },
             {
               "const": "few",
-              "title": "Exclude all occurances (if only a few tracks requested)"
+              "title": "Exclude all occurrences (if only a few tracks requested)"
             },
             {
               "const": "all",
-              "title": "Exclude all occurances"
+              "title": "Exclude all occurrences"
             }
           ]
         },
@@ -179,6 +195,19 @@
               "scope": "#/properties/instantMixSource"
             },
             {
+              "type": "Control",
+              "scope": "#/properties/alchemyTemperature",
+              "rule": {
+                "effect": "SHOW",
+                "condition": {
+                  "scope": "#/properties/instantMixSource",
+                  "schema": {
+                    "const": "songAlchemy"
+                  }
+                }
+              }
+            },
+            {
               "type": "VerticalLayout",
               "rule": {
                 "effect": "HIDE",
@@ -187,7 +216,8 @@
                   "schema": {
                     "enum": [
                       "lyricsBySong",
-                      "hyperbolic"
+                      "hyperbolic",
+                      "songAlchemy"
                     ]
                   }
                 }
@@ -203,8 +233,14 @@
                 {
                   "type": "Control",
                   "scope": "#/properties/radiusSimilarity",
-                  "options": {
-                    "toggle": true
+                  "rule": {
+                    "effect": "HIDE",
+                    "condition": {
+                      "scope": "#/properties/instantMixSource",
+                      "schema": {
+                        "const": "dclap"
+                      }
+                    }
                   }
                 }
               ]

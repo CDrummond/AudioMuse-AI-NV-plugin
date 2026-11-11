@@ -30,17 +30,25 @@ For Mobile app that want to map this functionality they need to implement the `g
 Other frontnend not in this list could also work by using those API even.
 
 **NEWS**
+> * From AudioMuse-AI-NV-plugin v12 InstantMix support also Song Alchemy. It send only one song but it give you the possibility to add randomness
+> * From AudioMuse-AI-NV-plugin v11 InstantMix support also DCLAP. To use it you **must** have AudioMuse-AI v3.7.0 or higher
 > * From AudioMuse-AI-NV-plugin v10 different AudioMuse-AI functionality can be selected for the InstantMix, chose it in the plugin configuration
 > * From AudioMuse-AI-NV-plugin v8 the Sonic Similarity API extension are supported on top of the previous one. The API are [documented here](https://opensubsonic.netlify.app/docs/extensions/sonicsimilarity/) and supported by [this Navidrome PR](https://github.com/navidrome/navidrome/pull/5419)
 > * InstantMix support in Navidrome start from v0.60.0: https://github.com/navidrome/navidrome/releases/tag/v0.60.0
 
 
-**The full list or AudioMuse-AI related repository are:** 
+**The full list of AudioMuse-AI related repository are:** 
   > * [AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI): the core application, it run Flask and Worker containers to actually run all the feature;
   > * [AudioMuse-AI Helm Chart](https://github.com/NeptuneHub/AudioMuse-AI-helm): helm chart for easy installation on Kubernetes;
-  > * [AudioMuse-AI Plugin for Jellyfin](https://github.com/NeptuneHub/audiomuse-ai-plugin): Jellyfin Plugin;
   > * [AudioMuse-AI Plugin for Navidrome](https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin): Navidrome Plugin;
-  > * [AudioMuse-AI MusicServer](https://github.com/NeptuneHub/AudioMuse-AI-MusicServer): Open Subsonic-like Music Server with integrated sonic functionality.
+  > * [AudioMuse-AI Plugin for Jellyfin](https://github.com/NeptuneHub/audiomuse-ai-plugin): Jellyfin Plugin;
+  > * [AudioMuse-AI MusicServer](https://github.com/NeptuneHub/AudioMuse-AI-MusicServer): Open Subosnic like Music Sever with integrated sonic functionality;
+  > * [AudioMuse-AI-Local-Bridge](https://github.com/NeptuneHub/AudioMuse-AI-Local-Bridge): Let AudioMuse-AI analyze the music directly on your computer;
+  > * [AudioMuse-AI-plugins](https://github.com/NeptuneHub/AudioMuse-AI-plugins): AudioMuse-AI third party plugins catalog;
+  > * [AudioMuse-AI Music Assistant Provider](https://github.com/music-assistant/server/releases/tag/2.11.0b6): Use AudioMuse-AI as sonic analysis provider for Music Assistant v2.11+
+  > * [AudioMuse-AI-Jellyfin-SDK](https://github.com/NeptuneHub/AudioMuse-AI-MusicServer): Typed client for the AudioMuse AI endpoints exposed by its Jellyfin plugin, built on @jellyfin/sdk;
+  > * [lyrion-audiomuseai-plugin](https://github.com/JameZUK/lyrion-audiomuseai-plugin): Unofficial Lyrion Plugin by [JameZUK](https://github.com/JameZUK);
+  > * [ha-audiomuse](https://github.com/colfin22/ha-audiomuse): Unofficial Home Assistant Plugin by [Colfin22](https://github.com/colfin22).
 
 ## HOW-TO Install
 
@@ -76,9 +84,11 @@ services:
 > - The **Instant Mix Functionality** select choose which AudioMuse-AI engine answer Instant Mix and Sonic Similarity:
 >   - **Similar Song** (default) - `GET /api/similar_tracks`, the historical behaviour;
 >   - **Lyrics by Song** - `POST /api/sem_grove/search`, it need the SemGrove index (lyrics + audio analysis) built in AudioMuse-AI;
->   - **Hyperbolic Similarity** - `POST /api/hyperbolic/similar` in its standard mode, it need the hyperbolic projection built in AudioMuse-AI.
+>   - **Hyperbolic Similarity** - `POST /api/hyperbolic/similar` in its standard mode, it need the hyperbolic projection built in AudioMuse-AI;
+>   - **DCLAP** - `POST /api/clap/search_by_song`, it need CLAP enabled and the DCLAP index built in AudioMuse-AI;
+>   - **Song Alchemy** - `POST /api/alchemy` with the song as the only ADD item and the configured 'Temperature' (default 1), it's the MusiCNN similarity with randomness.
 >
->   'Eliminate Duplicates' and 'Use Radius Similarity' apply only to **Similar Song**, the other two engine use the AudioMuse-AI default.
+>   'Eliminate Duplicates' apply to **Similar Song** and **DCLAP**, 'Use Radius Similarity' apply only to **Similar Song**, the other engine use the AudioMuse-AI default.
 
 See the official [Navidrome Documentation](https://www.navidrome.org/docs/usage/features/plugins/#managing-plugins-in-the-web-ui) for more information on how the plugin works.
 
