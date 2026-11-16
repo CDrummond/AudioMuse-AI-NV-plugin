@@ -233,6 +233,9 @@
                 {
                   "type": "Control",
                   "scope": "#/properties/radiusSimilarity",
+                  "options": {
+                    "toggle": true
+                  },
                   "rule": {
                     "effect": "HIDE",
                     "condition": {
