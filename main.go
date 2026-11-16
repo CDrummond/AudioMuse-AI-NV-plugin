@@ -295,12 +295,12 @@ func removeBrackets(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-func sanitiseTitle(s string) string {
-	return strings.ToLower(strings.NewReplacer(".", "", "/").Replace(removeBrackets(s)))
+func sanitiseArtist(s string) string {
+	return strings.ToLower(strings.NewReplacer(".", "", "/", "").Replace(s))
 }
 
-func sanitiseArtist(s string) string {
-	return strings.ToLower(strings.NewReplacer(".", "", "/").Replace(s))
+func sanitiseTitle(s string) string {
+	return sanitiseArtist(removeBrackets(s))
 }
 
 // Determine if a track should be filtered out of response
@@ -402,11 +402,11 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 			continue
 		}
 		title := sanitiseTitle(track.Title)
-		if (title == sanitisedTitle) {
+		if title == sanitisedTitle {
 			logExclude(fmt.Sprintf("Seed Title [%d]", idx), track)
 			continue
 		}
-		if (inSet(title, titles)) {
+		if inSet(title, titles) {
 			logExclude(fmt.Sprintf("Title [%d]", idx), track)
 			continue
 		}
@@ -420,7 +420,6 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 			break
 		}
 	}
-
 	// All filtered out??? Return first 2 - better than nothing?
 	if used < 1 {
 		for _, track := range tracks {
