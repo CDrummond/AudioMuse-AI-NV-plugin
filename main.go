@@ -219,8 +219,10 @@ func getSeedGenres(track *types.Track) *map[string]bool {
 					}
 				}
 			}
-			genreSet := listToSet(genres)
-			return &genreSet
+			if len(genres) > 0 {
+				genreSet := listToSet(genres)
+				return &genreSet
+			}
 		}
 	}
 	return nil
@@ -286,8 +288,24 @@ func trackStr(track audioMuseTrackResponse) string {
 	return fmt.Sprintf("%s by %s from %s", track.Title, track.Author, track.Album)
 }
 
-func logExclude(why string, track audioMuseTrackResponse) {
-	pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (EXCLUDE %s) %s", why, trackStr(track)))
+func navTrackStr(track *types.Track) string {
+	return fmt.Sprintf("%fs %s", track.Duration, strings.Join(track.Genres, ", "))
+}
+
+func navTrackFullStr(track *types.Track) string {
+	return fmt.Sprintf("%s by %s (%s) from %s -- %s", track.Title, track.Artist, track.AlbumArtist, track.Album, navTrackStr(track))
+}
+
+func logTrack(why string, track audioMuseTrackResponse, navTrack *types.Track) {
+	trackStr := trackStr(track)
+	if navTrack != nil {
+		trackStr = trackStr + " -- " + navTrackStr(navTrack)
+	}
+	pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (%s) %s", why, trackStr))
+}
+
+func logExclude(why string, track audioMuseTrackResponse, navTrack *types.Track) {
+	logTrack(fmt.Sprintf("EXCLUDE %s", why), track, navTrack)
 }
 
 func removeBrackets(s string) string {
@@ -306,36 +324,36 @@ func sanitiseTitle(s string) string {
 // Determine if a track should be filtered out of response
 func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 	if inSet(track.Author, processOpts.ExcludeArtists) {
-		logExclude("Artist", track)
+		logExclude("Artist", track, nil)
 		return true
 	}
 	if inSet(track.Album, processOpts.ExcludeAlbums) {
-		logExclude("Album", track)
+		logExclude("Album", track, nil)
 		return true
 	}
 	if inSet(fmt.Sprintf("%s//%s", track.Author, track.Album), processOpts.ExcludeAlbums) {
-		logExclude("Artist+Album", track)
+		logExclude("Artist+Album", track, nil)
 		return true
 	}
 	if processOpts.MinDuration > 0 || processOpts.MaxDuration > 0 || processOpts.FilterXmas || len(processOpts.ExcludeAlbums) > 0 || nil != processOpts.GenresInGroups || nil != processOpts.SeedGenres {
 		navTrack := getTrackByID(track.ItemID)
 		if navTrack != nil {
 			if processOpts.ExcludeExplict && len(navTrack.ExplicitStatus) > 0 {
-				logExclude("Explicit", track)
+				logExclude("Explicit", track, navTrack)
 				return true
 			}
 			if (processOpts.MinDuration > 0 && int(navTrack.Duration) < processOpts.MinDuration) || (processOpts.MaxDuration > 0 && int(navTrack.Duration) > processOpts.MaxDuration) {
-				logExclude("Duration", track)
+				logExclude("Duration", track, navTrack)
 				return true
 			}
 			if len(processOpts.ExcludeAlbums) > 0 && inSet(fmt.Sprintf("%s//%s", navTrack.AlbumArtist, track.Album), processOpts.ExcludeAlbums) {
-				logExclude("AlbumArtist+Album", track)
+				logExclude("AlbumArtist+Album", track, navTrack)
 				return true
 			}
 			if processOpts.FilterXmas {
 				for _, genre := range navTrack.Genres {
 					if genre == christmasGenre {
-						logExclude("Christmas", track)
+						logExclude("Christmas", track, navTrack)
 						return true
 					}
 				}
@@ -345,21 +363,23 @@ func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 				for _, genre := range navTrack.Genres {
 					if (*processOpts.SeedGenres)[genre] {
 						// Match, so don't filter out
+						logTrack("ALLOW", track, navTrack)
 						return false
 					}
 				}
-				logExclude("Seed Genres", track)
+				logExclude("Seed Genres", track, navTrack)
 				return true
 			} else if processOpts.GenresInGroups != nil {
 				// Seed genre not in a group, but groups defined, therefore candidate also needs to NOT be in a group
 				for _, genre := range navTrack.Genres {
 					if (*processOpts.GenresInGroups)[genre] {
 						// Matched so filter out
-						logExclude("Genres", track)
+						logExclude("Genres", track, navTrack)
 						return true
 					}
 				}
 			}
+			logTrack("ALLOW", track, navTrack)
 		}
 	}
 	return false
@@ -385,6 +405,7 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 	if !processOpts.FilteringActive && !processOpts.Shuffle && !processOpts.Remove {
 		return tracks
 	}
+	pdk.Log(pdk.LogDebug, fmt.Sprintf("[AudioMuse] (SEED) %s", navTrackFullStr(seedTrack)))
 	accepted := make([]audioMuseTrackResponse, 0, len(tracks))
 	titles := make(map[string]bool, len(tracks))
 	exSeedFirst := (excludeSeedFirst == processOpts.ExcludeSeed) || (excludeSeedAllIfFew == processOpts.ExcludeSeed)
@@ -398,16 +419,16 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 
 	for idx, track := range tracks {
 		if ((exSeedFirst && 0 == idx) || exSeedAll) && seedTrack != nil && (sanitiseArtist(track.Author) == sanitisedArtist || sanitiseArtist(track.Author) == sanitisedAlbumArtist) {
-			logExclude(fmt.Sprintf("Seed Artist [%d]", idx), track)
+			logExclude(fmt.Sprintf("Seed Artist [%d]", idx), track, nil)
 			continue
 		}
 		title := sanitiseTitle(track.Title)
 		if title == sanitisedTitle {
-			logExclude(fmt.Sprintf("Seed Title [%d]", idx), track)
+			logExclude(fmt.Sprintf("Seed Title [%d]", idx), track, nil)
 			continue
 		}
 		if inSet(title, titles) {
-			logExclude(fmt.Sprintf("Title [%d]", idx), track)
+			logExclude(fmt.Sprintf("Title [%d]", idx), track, nil)
 			continue
 		}
 		titles[title] = true
@@ -422,6 +443,7 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 	}
 	// All filtered out??? Return first 2 - better than nothing?
 	if used < 1 {
+		pdk.Log(pdk.LogDebug, "[AudioMuse] Excluded all? Just use first 2")
 		for _, track := range tracks {
 			accepted = append(accepted, track)
 			used++
@@ -475,7 +497,7 @@ func process(seedTrack *types.Track, tracks []audioMuseTrackResponse, processOpt
 			for _, track := range accepted {
 				sanitisedArtist = sanitiseArtist(track.Author)
 				if sanitisedArtist == lastArtist {
-					logExclude("Same Artist as prev", track)
+					logExclude("Same Artist as prev", track, nil)
 					continue
 				}
 				lastArtist = sanitisedArtist
