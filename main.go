@@ -213,7 +213,7 @@ func getSeedGenres(track *types.Track) *map[string]bool {
 				group := splitString(grp, ",")
 				groupSet := listToSet(group)
 				for _, genre := range track.Genres {
-					if groupSet[genre] {
+					if groupSet[ strings.TrimSpace(genre) ] {
 						genres = append(genres[:], group[:]...)
 						break
 					}
@@ -314,7 +314,7 @@ func removeBrackets(s string) string {
 }
 
 func sanitiseArtist(s string) string {
-	return strings.ToLower(strings.NewReplacer(".", "", "/", "").Replace(s))
+	return strings.TrimSpace(strings.ToLower(strings.NewReplacer(".", "", "/", "").Replace(s)))
 }
 
 func sanitiseTitle(s string) string {
@@ -352,7 +352,7 @@ func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 			}
 			if processOpts.FilterXmas {
 				for _, genre := range navTrack.Genres {
-					if genre == christmasGenre {
+					if strings.TrimSpace(genre) == christmasGenre {
 						logExclude("Christmas", track, navTrack)
 						return true
 					}
@@ -361,7 +361,7 @@ func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 			if processOpts.SeedGenres != nil {
 				// Seed genre is in a group, therefore candidate also needs to be in group
 				for _, genre := range navTrack.Genres {
-					if (*processOpts.SeedGenres)[genre] {
+					if (*processOpts.SeedGenres)[ strings.TrimSpace(genre) ] {
 						// Match, so don't filter out
 						logTrack("ALLOW", track, navTrack)
 						return false
@@ -372,7 +372,7 @@ func filter(track audioMuseTrackResponse, processOpts processOptions) bool {
 			} else if processOpts.GenresInGroups != nil {
 				// Seed genre not in a group, but groups defined, therefore candidate also needs to NOT be in a group
 				for _, genre := range navTrack.Genres {
-					if (*processOpts.GenresInGroups)[genre] {
+					if (*processOpts.GenresInGroups)[ strings.TrimSpace(genre) ] {
 						// Matched so filter out
 						logExclude("Genres", track, navTrack)
 						return true
